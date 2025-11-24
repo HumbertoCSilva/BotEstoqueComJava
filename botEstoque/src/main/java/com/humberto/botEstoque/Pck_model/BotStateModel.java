@@ -20,5 +20,9 @@ public enum BotStateModel {
     ATUALIZAR_INICIAL,  // 1. Espera a descrição do produto a atualizar
     ATUALIZAR_VALORES,  // 2. Espera a string com os três novos valores
     DELETAR_INICIAL,             // Novo: Espera a descrição do produto a deletar
-    DELETAR_CONFIRMACAO_PENDENTE // Novo: Espera o clique do botão (CallbackQuery)
+    DELETAR_CONFIRMACAO_PENDENTE, // Novo: Espera o clique do botão (CallbackQuery)
+    PROJECAO_INICIAL,
+    PROJECAO_FATURAMENTO,
+    PROJECAO_DIAS_TRABALHADOS,
+    PROJECAO_DIAS_TOTAIS
 }

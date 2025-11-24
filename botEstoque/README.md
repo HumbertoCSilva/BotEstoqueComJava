@@ -59,6 +59,8 @@ Para rastrear todas as exclusões, foi criada uma Trigger de auditoria:
 * **Ação:** Executada **ANTES** de qualquer `DELETE` na tabela `produtos`.
 * **Função:** Copia os dados completos da linha que será excluída (usando o comando **`OLD`**) para a tabela **`produtos_excluidos`**, juntamente com a data e hora exata da exclusão (`NOW()`).
 
+
+* testar projeção - projeção implementada 24/11
 ---
 
 ## 🚀 Próximos Passos (Próximos Comandos)
@@ -74,5 +76,5 @@ Proximas implementações e testes:
 * implementar controle de desperdício - informa o item, o motivo e a quantidade - listar para ver o desperdício
 * consumo - informa o funcionario, a data, oq ue foi consumido, listar para ver consumo por funcionário ou total
 * testar calculo de cmv
-* testar projeção
+
 

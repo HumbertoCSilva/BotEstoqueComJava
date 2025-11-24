@@ -62,7 +62,7 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
             } else {
                 processStepInput(chatId, messageText, state);
             }
-        } else if (update.hasCallbackQuery()) { // TRATAMENTO DE CLIQUE DE BOTÃO
+        } else if (update.hasCallbackQuery()) {
             handleCallbackQuery(update.getCallbackQuery());
         }
     }
@@ -76,7 +76,6 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
 
         if (state.getEstadoAtual() == BotStateModel.DELETAR_CONFIRMACAO_PENDENTE) {
 
-            // A descrição foi salva como String no dadosTemp
             String descricaoDeletar = (String) state.getDadosTemp().get("DescricaoDeletar");
 
             if (data.equals("DELETE_CONFIRM") && descricaoDeletar != null) {
@@ -139,122 +138,110 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
                 state.setEstadoAtual(BotStateModel.DELETAR_INICIAL);
                 sendMessage(chatId, "⚠️ **DELETAR PRODUTO**\nPor favor, envie a **descrição** do produto que você deseja apagar.");
                 break;
-            case "/listar": // COMANDO NOVO
+            case "/listar":
                 handleListarEstoque(chatId);
                 break;
-            // TODO: Adicionar cases para /cmvReal, etc.
+            case "/projecao":
+                state.setEstadoAtual(BotStateModel.PROJECAO_FATURAMENTO);
+                sendMessage(chatId, "💰 **PROJEÇÃO DE FATURAMENTO**\nPor favor, envie o **Faturamento Total** acumulado até agora (apenas número).");
+                break;
+            // TODO: Adicionar cases para /cmvReal e /cmvAcompanhamento
             default:
                 sendMessage(chatId, "Comando desconhecido. Por favor, digite **/menu** para ver a lista de comandos.");
         }
     }
 
     private void processStepInput(long chatId, String text, UsuarioStateModel state) {
-        switch (state.getEstadoAtual()) {
-            case CADASTRO_CODIGO:
-                state.getProdutoTemp().setCodigo(text.toUpperCase());
-                state.setEstadoAtual(BotStateModel.CADASTRO_DESCRICAO);
-                sendMessage(chatId, "Ok. Agora envie a **descrição** do produto (Ex: Café Grão).");
-                break;
+        try {
+            switch (state.getEstadoAtual()) {
+                case CADASTRO_CODIGO:
+                    state.getProdutoTemp().setCodigo(text.toUpperCase());
+                    state.setEstadoAtual(BotStateModel.CADASTRO_DESCRICAO);
+                    sendMessage(chatId, "Ok. Agora envie a **descrição** do produto (Ex: Café Grão).");
+                    break;
 
-            case CADASTRO_DESCRICAO:
-                state.getProdutoTemp().setDescricao(text);
-                state.setEstadoAtual(BotStateModel.CADASTRO_UNIDADE);
-                sendMessage(chatId, "Agora envie a **unidade de medida** (Ex: kg, L, un).");
-                break;
+                case CADASTRO_DESCRICAO:
+                    state.getProdutoTemp().setDescricao(text);
+                    state.setEstadoAtual(BotStateModel.CADASTRO_UNIDADE);
+                    sendMessage(chatId, "Agora envie a **unidade de medida** (Ex: kg, L, un).");
+                    break;
 
-            case CADASTRO_UNIDADE:
-                state.getProdutoTemp().setUnidadeMedida(text);
-                state.setEstadoAtual(BotStateModel.CADASTRO_QUANTIDADE);
-                sendMessage(chatId, "Qual a **quantidade** inicial em estoque? (Apenas números)");
-                break;
+                case CADASTRO_UNIDADE:
+                    state.getProdutoTemp().setUnidadeMedida(text);
+                    state.setEstadoAtual(BotStateModel.CADASTRO_QUANTIDADE);
+                    sendMessage(chatId, "Qual a **quantidade** inicial em estoque? (Apenas números)");
+                    break;
 
-            case CADASTRO_QUANTIDADE:
-                try {
+                case CADASTRO_QUANTIDADE:
                     double quantidade = Double.parseDouble(text.replace(",", "."));
                     state.getProdutoTemp().setQuantidade(quantidade);
                     state.setEstadoAtual(BotStateModel.CADASTRO_CUSTO);
                     sendMessage(chatId, "Qual o **custo unitário** deste produto? (Apenas números)");
-                } catch (NumberFormatException e) {
-                    sendMessage(chatId, "Erro: A quantidade deve ser um número. Tente novamente.");
-                }
-                break;
+                    break;
 
-            case CADASTRO_CUSTO:
-                try {
+                case CADASTRO_CUSTO:
                     double custo = Double.parseDouble(text.replace(",", "."));
                     state.getProdutoTemp().setCusto(custo);
                     state.setEstadoAtual(BotStateModel.CADASTRO_VALOR_VENDA);
                     sendMessage(chatId, "Qual o **valor de venda** unitário? (Apenas números. Digite 0 se não for para venda).");
-                } catch (NumberFormatException e) {
-                    sendMessage(chatId, "Erro: O custo deve ser um número. Tente novamente.");
-                }
-                break;
+                    break;
 
-            case CADASTRO_VALOR_VENDA:
-                try {
+                case CADASTRO_VALOR_VENDA:
                     double valorVenda = Double.parseDouble(text.replace(",", "."));
                     state.getProdutoTemp().setValorVenda(valorVenda);
                     handleFinalizarCadastro(chatId, state);
-                } catch (NumberFormatException e) {
-                    sendMessage(chatId, "Erro: O valor de venda deve ser um número. Tente novamente.");
-                }
-                break;
+                    break;
 
-            case CONTAGEM_INICIAL: // Usado para /consultar e para o primeiro passo do /contagem
-                String descricaoBuscaContagem = text;
-                Optional<ProdutoModel> produtoOptContagem = estoqueService.consultarProdutoPorDescricao(descricaoBuscaContagem);
+                case CONTAGEM_INICIAL:
+                    String descricaoBuscaContagem = text;
+                    Optional<ProdutoModel> produtoOptContagem = estoqueService.consultarProdutoPorDescricao(descricaoBuscaContagem);
 
-                if (produtoOptContagem.isPresent()) {
-                    ProdutoModel produto = produtoOptContagem.get();
-                    if (state.getProdutoTemp().getCodigo() == null) { // Caso /consultar
-                        handleConsultaProduto(chatId, produto);
+                    if (produtoOptContagem.isPresent()) {
+                        ProdutoModel produto = produtoOptContagem.get();
+                        if (state.getProdutoTemp().getCodigo() == null) {
+                            handleConsultaProduto(chatId, produto);
+                            state.setEstadoAtual(BotStateModel.IDLE);
+                        } else {
+                            state.getDadosTemp().put("ProdutoID", (double) produto.getId());
+                            state.setEstadoAtual(BotStateModel.CONTAGEM_QUANTIDADE);
+                            sendMessage(chatId, "Produto encontrado: **" + produto.getDescricao() + "**.\nQual é a **nova quantidade** em estoque?");
+                        }
+                    } else {
+                        sendMessage(chatId, "Produto não encontrado com a descrição: " + descricaoBuscaContagem);
                         state.setEstadoAtual(BotStateModel.IDLE);
-                    } else { // Caso /contagem
-                        state.getDadosTemp().put("ProdutoID", (double) produto.getId());
-                        state.setEstadoAtual(BotStateModel.CONTAGEM_QUANTIDADE);
-                        sendMessage(chatId, "Produto encontrado: **" + produto.getDescricao() + "**.\nQual é a **nova quantidade** em estoque?");
                     }
-                } else {
-                    sendMessage(chatId, "Produto não encontrado com a descrição: " + descricaoBuscaContagem);
+                    break;
+
+                case CONTAGEM_QUANTIDADE:
+                    // TODO: Chamar estoqueService.atualizarInformacoes (Lógica de contagem)
+                    sendMessage(chatId, "Lógica de contagem em desenvolvimento.");
                     state.setEstadoAtual(BotStateModel.IDLE);
-                }
-                break;
+                    break;
 
-            case CONTAGEM_QUANTIDADE:
-                // Lógica de contagem
-                // TODO: Chamar estoqueService.atualizarInformacoes
-                sendMessage(chatId, "Lógica de contagem em desenvolvimento.");
-                state.setEstadoAtual(BotStateModel.IDLE);
-                break;
+                case ATUALIZAR_INICIAL:
+                    String descricaoBuscaAtualizar = text;
+                    Optional<ProdutoModel> produtoOptAtualizar = estoqueService.consultarProdutoPorDescricao(descricaoBuscaAtualizar);
 
-            case ATUALIZAR_INICIAL: // PASSO 1: Receber Descrição
-                String descricaoBuscaAtualizar = text;
-                Optional<ProdutoModel> produtoOptAtualizar = estoqueService.consultarProdutoPorDescricao(descricaoBuscaAtualizar);
+                    if (produtoOptAtualizar.isPresent()) {
+                        state.getDadosTemp().put("DescricaoAtualizar", descricaoBuscaAtualizar.toUpperCase());
+                        state.setEstadoAtual(BotStateModel.ATUALIZAR_VALORES);
+                        sendMessage(chatId,
+                                "Produto encontrado: **" + produtoOptAtualizar.get().getDescricao() + "**.\n\n" +
+                                        "✏️ **Atualize os valores** abaixo. *Use vírgulas para separar os campos.*\n\n" +
+                                        "**Ordem Fixa:** [1] Quantidade, [2] Custo Unitário, [3] Valor de Venda\n\n" +
+                                        "➡️ **Regra:** Digite **0** (zero) ou **-** (hífen) para pular um campo que não será alterado.\n\n" +
+                                        "Exemplos:\n" +
+                                        "Mudar só a Quantidade: `20, 0, 0`\n" +
+                                        "Mudar só o Custo: `0, 1.50, 0`\n" +
+                                        "Mudar os três: `10.5, 4.5, 6.0`"
+                        );
+                    } else {
+                        sendMessage(chatId, "❌ Produto não encontrado. Por favor, digite a descrição correta.");
+                        state.setEstadoAtual(BotStateModel.IDLE);
+                    }
+                    break;
 
-                if (produtoOptAtualizar.isPresent()) {
-                    state.getDadosTemp().put("DescricaoAtualizar", descricaoBuscaAtualizar.toUpperCase());
-
-                    state.setEstadoAtual(BotStateModel.ATUALIZAR_VALORES);
-
-                    sendMessage(chatId,
-                            "Produto encontrado: **" + produtoOptAtualizar.get().getDescricao() + "**.\n\n" +
-                                    "✏️ **Atualize os valores** abaixo. *Use vírgulas para separar os campos.*\n\n" +
-                                    "**Ordem Fixa:** [1] Quantidade, [2] Custo Unitário, [3] Valor de Venda\n\n" +
-                                    "➡️ **Regra:** Digite **0** (zero) ou **-** (hífen) para pular um campo que não será alterado.\n\n" +
-                                    "Exemplos:\n" +
-                                    "Mudar só a Quantidade: `20, 0, 0`\n" +
-                                    "Mudar só o Custo: `0, 1.50, 0`\n" +
-                                    "Mudar os três: `10.5, 4.5, 6.0`"
-                    );
-
-                } else {
-                    sendMessage(chatId, "❌ Produto não encontrado. Por favor, digite a descrição correta.");
-                    state.setEstadoAtual(BotStateModel.IDLE);
-                }
-                break;
-
-            case ATUALIZAR_VALORES: // PASSO 2: Receber e Processar 3 valores
-                try {
+                case ATUALIZAR_VALORES:
                     String[] partes = text.split(",");
                     if (partes.length != 3) {
                         sendMessage(chatId, "❌ Formato incorreto. Envie exatamente 3 valores separados por vírgula (Ex: 10.5, 4.5, 6.0).");
@@ -276,43 +263,97 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
                     } else {
                         sendMessage(chatId, "❌ Erro ao atualizar. O produto não foi encontrado no banco de dados.");
                     }
-
-                } catch (NumberFormatException e) {
-                    sendMessage(chatId, "❌ Erro de formato. Certifique-se de que todos os valores são números válidos (use ponto para decimais).");
-                } catch (Exception e) {
-                    sendMessage(chatId, "❌ Erro inesperado ao processar a atualização. Tente novamente.");
-                } finally {
                     state.setEstadoAtual(BotStateModel.IDLE);
                     state.getDadosTemp().clear();
-                }
-                break;
+                    break;
 
-            case DELETAR_INICIAL: // PASSO 1 DELETAR
-                String descricaoBuscaDeletar = text;
-                Optional<ProdutoModel> produtoOptDeletar = estoqueService.consultarProdutoPorDescricao(descricaoBuscaDeletar);
+                case DELETAR_INICIAL:
+                    String descricaoBuscaDeletar = text;
+                    Optional<ProdutoModel> produtoOptDeletar = estoqueService.consultarProdutoPorDescricao(descricaoBuscaDeletar);
 
-                if (produtoOptDeletar.isPresent()) {
-                    ProdutoModel produto = produtoOptDeletar.get();
+                    if (produtoOptDeletar.isPresent()) {
+                        ProdutoModel produto = produtoOptDeletar.get();
 
-                    // Salva a descrição (String) para usar no Callback
-                    state.getDadosTemp().put("DescricaoDeletar", produto.getDescricao().toUpperCase());
-                    state.setEstadoAtual(BotStateModel.DELETAR_CONFIRMACAO_PENDENTE);
+                        state.getDadosTemp().put("DescricaoDeletar", produto.getDescricao().toUpperCase());
+                        state.setEstadoAtual(BotStateModel.DELETAR_CONFIRMACAO_PENDENTE);
 
-                    sendDeleteConfirmation(chatId, produto.getDescricao());
+                        sendDeleteConfirmation(chatId, produto.getDescricao());
 
-                } else {
-                    sendMessage(chatId, "❌ Produto não encontrado com a descrição: " + descricaoBuscaDeletar);
-                    state.setEstadoAtual(BotStateModel.IDLE);
-                }
-                break;
+                    } else {
+                        sendMessage(chatId, "❌ Produto não encontrado com a descrição: " + descricaoBuscaDeletar);
+                        state.setEstadoAtual(BotStateModel.IDLE);
+                    }
+                    break;
 
-            case DELETAR_CONFIRMACAO_PENDENTE:
-                sendMessage(chatId, "⚠️ Por favor, use os botões **SIM** ou **CANCELAR**.");
-                break;
+                case DELETAR_CONFIRMACAO_PENDENTE:
+                    sendMessage(chatId, "⚠️ Por favor, use os botões **SIM** ou **CANCELAR**.");
+                    break;
 
-            case IDLE:
-                sendMessage(chatId, "Comando não reconhecido. Use **/menu** para ver a lista de comandos.");
-                break;
+                /* --- FLUXO DE PROJEÇÃO DE FATURAMENTO --- */
+
+                case PROJECAO_FATURAMENTO:
+                    double faturamento = Double.parseDouble(text.replace(",", "."));
+                    state.getDadosTemp().put("Faturamento", faturamento);
+                    state.setEstadoAtual(BotStateModel.PROJECAO_DIAS_TRABALHADOS);
+                    sendMessage(chatId, "Quantos **Dias (Corridos)** foram trabalhados/transcorridos no período? (Apenas número inteiro)");
+                    break;
+
+                case PROJECAO_DIAS_TRABALHADOS:
+                    int diasTrabalhados = Integer.parseInt(text.trim());
+                    state.getDadosTemp().put("DiasTrabalhados", (double) diasTrabalhados);
+                    state.setEstadoAtual(BotStateModel.PROJECAO_DIAS_TOTAIS);
+                    sendMessage(chatId, "Qual o **Total de Dias Úteis/Totais** do período? (Ex: 30 para o mês todo)");
+                    break;
+
+                case PROJECAO_DIAS_TOTAIS:
+                    int diasTotais = Integer.parseInt(text.trim());
+                    state.getDadosTemp().put("DiasTotais", (double) diasTotais);
+
+                    handleProjecaoFinalizar(chatId, state);
+                    break;
+
+                case IDLE:
+                    sendMessage(chatId, "Comando não reconhecido. Use **/menu** para ver a lista de comandos.");
+                    break;
+            }
+        } catch (NumberFormatException e) {
+            sendMessage(chatId, "❌ Erro: O valor '" + text + "' não é um número válido. Tente novamente.");
+        } catch (Exception e) {
+            sendMessage(chatId, "❌ Erro inesperado ao processar o passo: " + e.getMessage());
+            state.setEstadoAtual(BotStateModel.IDLE);
+            state.getDadosTemp().clear();
+        }
+    }
+
+    // --- NOVO HANDLER: FINALIZA PROJEÇÃO ---
+
+    private void handleProjecaoFinalizar(long chatId, UsuarioStateModel state) {
+        try {
+            double faturamento = (double) state.getDadosTemp().get("Faturamento");
+            int diasTrabalhados = ((Double) state.getDadosTemp().get("DiasTrabalhados")).intValue();
+            int diasTotais = ((Double) state.getDadosTemp().get("DiasTotais")).intValue();
+
+            // 1. Chama o Serviço de Cálculo
+            double projecao = estoqueService.realizarProjecaoFaturamento(faturamento, diasTrabalhados, diasTotais);
+
+            // 2. Formata a Resposta
+            String resumo = String.format(
+                    "📈 **Resultado da Projeção**\n" +
+                            "----------------------------------\n" +
+                            "Faturamento Base: R$ %,.2f\n" +
+                            "Dias Trabalhados: %d\n" +
+                            "Dias Totais (Meta): %d\n\n" +
+                            "**PROJEÇÃO FINAL: R$ %,.2f**",
+                    faturamento, diasTrabalhados, diasTotais, projecao
+            ).replace(",", ".");
+
+            sendMessage(chatId, resumo);
+
+        } catch (Exception e) {
+            sendMessage(chatId, "❌ Erro ao calcular projeção: Certifique-se de que todos os valores foram inseridos corretamente.");
+        } finally {
+            state.setEstadoAtual(BotStateModel.IDLE);
+            state.getDadosTemp().clear();
         }
     }
 
@@ -336,7 +377,7 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
                     p.getDescricao(),
                     p.getQuantidade(),
                     p.getUnidadeMedida(),
-                    p.getValorEmEstoque()); // Valor em Custo
+                    p.getValorEmEstoque());
 
             // Verifica o limite de caracteres do Telegram (4096).
             if (sb.length() + linha.length() > 4000) {
@@ -353,8 +394,7 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
         }
     }
 
-
-    // --- HANDLERS E UTILITÁRIOS ---
+    // --- UTENSÍLIOS DE DADOS E RESPOSTA ---
 
     // Método para tratar valores nulos/vazios na atualização
     private Double parseUpdateValue(String input) throws NumberFormatException {
@@ -364,43 +404,6 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
         return Double.parseDouble(input.replace(",", "."));
     }
 
-    // MÉTODOS DE BOTÃO (DELETE)
-    private void sendDeleteConfirmation(long chatId, String descricaoProduto) {
-        InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
-        InlineKeyboardButton buttonYes = new InlineKeyboardButton();
-        buttonYes.setText("✅ Sim, Deletar");
-        buttonYes.setCallbackData("DELETE_CONFIRM");
-        InlineKeyboardButton buttonNo = new InlineKeyboardButton();
-        buttonNo.setText("❌ Cancelar");
-        buttonNo.setCallbackData("DELETE_CANCEL");
-        List<InlineKeyboardButton> row1 = List.of(buttonYes, buttonNo);
-        markupInline.setKeyboard(List.of(row1));
-        SendMessage message = new SendMessage();
-        message.setChatId(String.valueOf(chatId));
-        message.setText("⚠️ **Confirmação:** Tem certeza que deseja deletar permanentemente o produto **" + descricaoProduto + "**?");
-        message.setReplyMarkup(markupInline);
-        message.enableMarkdown(true);
-        try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            System.err.println("Erro ao enviar confirmação: " + e.getMessage());
-        }
-    }
-
-    private void editMessage(long chatId, int messageId, String newText) {
-        EditMessageReplyMarkup editReplyMarkup = new EditMessageReplyMarkup();
-        editReplyMarkup.setChatId(String.valueOf(chatId));
-        editReplyMarkup.setMessageId(messageId);
-        editReplyMarkup.setReplyMarkup(null);
-        try {
-            execute(editReplyMarkup);
-        } catch (TelegramApiException e) {
-            System.err.println("Erro ao editar mensagem (remover botões): " + e.getMessage());
-        }
-        sendMessage(chatId, newText);
-    }
-
-
     private void handleMenuCommand(long chatId) {
         String menuText =
                 "📋 **MENU DE COMANDOS - GESTÃO DE ESTOQUE** 📋\n\n" +
@@ -408,10 +411,10 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
                         "/cadastrar - Inicia o cadastro de um novo produto (multi-passo).\n" +
                         "/consultar - Consulta detalhes de um produto pela descrição.\n" +
                         "/atualizar - Atualiza preço de custo ou venda de um produto.\n" +
-                        "/deletar   - Deleta um produto do estoque (requer confirmação).\n\n" +
+                        "/deletar   - Deleta um produto do estoque (requer confirmação).\n" +
+                        "/listar    - Lista o estoque completo por ordem de código.\n\n" +
                         "--- *Movimentação e Inventário* ---\n" +
                         "/contagem  - Ajusta a quantidade de um produto após contagem física.\n" +
-                        "/listar    - Lista o estoque completo por ordem de código.\n" +
                         "/desperdicio - Registra a saída de itens por desperdício/quebra (futuro).\n" +
                         "/consumo   - Registra a saída de itens consumidos por funcionários (futuro).\n\n" +
                         "--- *Relatórios Financeiros* ---\n" +
@@ -475,6 +478,42 @@ public class CafeteriaBotController extends TelegramLongPollingBot {
         double total = estoqueService.calcularEstoqueTotal();
         String resumo = String.format("💰 O **Valor Total em Estoque** (Custo) da sua cafeteria é de: **R$ %.2f**.", total);
         sendMessage(chatId, resumo);
+    }
+
+    // MÉTODOS DE BOTÃO (DELETE)
+    private void sendDeleteConfirmation(long chatId, String descricaoProduto) {
+        InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
+        InlineKeyboardButton buttonYes = new InlineKeyboardButton();
+        buttonYes.setText("✅ Sim, Deletar");
+        buttonYes.setCallbackData("DELETE_CONFIRM");
+        InlineKeyboardButton buttonNo = new InlineKeyboardButton();
+        buttonNo.setText("❌ Cancelar");
+        buttonNo.setCallbackData("DELETE_CANCEL");
+        List<InlineKeyboardButton> row1 = List.of(buttonYes, buttonNo);
+        markupInline.setKeyboard(List.of(row1));
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("⚠️ **Confirmação:** Tem certeza que deseja deletar permanentemente o produto **" + descricaoProduto + "**?");
+        message.setReplyMarkup(markupInline);
+        message.enableMarkdown(true);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            System.err.println("Erro ao enviar confirmação: " + e.getMessage());
+        }
+    }
+
+    private void editMessage(long chatId, int messageId, String newText) {
+        EditMessageReplyMarkup editReplyMarkup = new EditMessageReplyMarkup();
+        editReplyMarkup.setChatId(String.valueOf(chatId));
+        editReplyMarkup.setMessageId(messageId);
+        editReplyMarkup.setReplyMarkup(null);
+        try {
+            execute(editReplyMarkup);
+        } catch (TelegramApiException e) {
+            System.err.println("Erro ao editar mensagem (remover botões): " + e.getMessage());
+        }
+        sendMessage(chatId, newText);
     }
 
     private void sendMessage(long chatId, String textToSend) {
